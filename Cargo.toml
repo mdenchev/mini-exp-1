@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy.git" }
 bevy_spicy_aseprite = { git = "https://github.com/mdenchev/bevy_spicy_aseprite" }
+bevy_prototype_lyon = { git = "https://github.com/Nilirad/bevy_prototype_lyon" }
+uuid = {version = "1.0.0-alpha.1", features = ["v4", "fast-rng"] }
