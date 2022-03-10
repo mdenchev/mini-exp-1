@@ -1,4 +1,9 @@
-use bevy::{math::Vec3Swizzles, prelude::*, render2::view::Visibility, transform::{TransformSystem, transform_propagate_system::transform_propagate_system}, utils::HashMap};
+use bevy::{
+    math::Vec3Swizzles,
+    prelude::*,
+    transform::{transform_propagate_system::transform_propagate_system, TransformSystem},
+    utils::HashMap,
+};
 use bevy_prototype_lyon::{
     entity::ShapeBundle,
     plugin::ShapePlugin,
@@ -49,7 +54,7 @@ impl Aabb {
 #[derive(Component, Debug, Clone, Copy)]
 enum AabbKind {
     Sensor,
-    Collider
+    Collider,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -65,7 +70,7 @@ enum CollisionBehavior {
     Static,
     Npc,
     Player,
-    Movable
+    Movable,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -77,21 +82,30 @@ struct AabbComputed {
 }
 
 impl AabbComputed {
-    fn intersects(&self, other: &AabbComputed, self_ent: Entity, other_ent: Entity) -> Option<CollisionKind> {
-        if self_ent == other_ent { return None }
+    fn intersects(
+        &self,
+        other: &AabbComputed,
+        self_ent: Entity,
+        other_ent: Entity,
+    ) -> Option<CollisionKind> {
+        if self_ent == other_ent {
+            return None;
+        }
 
-        if ((self.min.x >= other.min.x && self.min.x <= other.max.x) ||
-        (self.max.x >= other.min.x && self.max.x <= other.max.x)) &&
-        ((self.min.y >= other.min.y && self.min.y <= other.max.y) ||
-        (self.max.y >= other.min.y && self.max.y <= other.max.y)) {
+        if ((self.min.x >= other.min.x && self.min.x <= other.max.x)
+            || (self.max.x >= other.min.x && self.max.x <= other.max.x))
+            && ((self.min.y >= other.min.y && self.min.y <= other.max.y)
+                || (self.max.y >= other.min.y && self.max.y <= other.max.y))
+        {
             let collision_kind = match (self.aabb_kind, other.aabb_kind) {
                 (AabbKind::Collider, AabbKind::Collider) => CollisionKind::ColliderCollider,
-                (AabbKind::Collider, AabbKind::Sensor) | (AabbKind::Sensor, AabbKind::Collider) => CollisionKind::SensorCollider,
+                (AabbKind::Collider, AabbKind::Sensor) | (AabbKind::Sensor, AabbKind::Collider) => {
+                    CollisionKind::SensorCollider
+                }
                 (AabbKind::Sensor, AabbKind::Sensor) => CollisionKind::SensorSensor,
             };
             Some(collision_kind)
-        }
-        else {
+        } else {
             None
         }
     }
@@ -101,16 +115,23 @@ impl AabbComputed {
         let right_displacement = other.max.x - self.min.x;
         let down_displacement = other.min.y - self.max.y;
         let up_displacement = other.max.y - self.min.y;
-        let horizontal = if left_displacement.abs() < right_displacement.abs() { left_displacement } else { right_displacement };
-        let vertical = if up_displacement.abs() < down_displacement.abs() { up_displacement } else { down_displacement };
-        if horizontal.abs() < vertical.abs() {
-            Vec2::new(horizontal/2., 0.0)
+        let horizontal = if left_displacement.abs() < right_displacement.abs() {
+            left_displacement
         } else {
-            Vec2::new(0.0, vertical/2.)
+            right_displacement
+        };
+        let vertical = if up_displacement.abs() < down_displacement.abs() {
+            up_displacement
+        } else {
+            down_displacement
+        };
+        if horizontal.abs() < vertical.abs() {
+            Vec2::new(horizontal / 2., 0.0)
+        } else {
+            Vec2::new(0.0, vertical / 2.)
         }
     }
 }
-
 
 #[derive(Bundle)]
 struct AabbBundle {
@@ -123,16 +144,24 @@ struct AabbBundle {
 }
 
 impl AabbBundle {
-    pub fn new(extents: Vec2, aabb_kind: AabbKind, collision_behavior: CollisionBehavior, color: Color) -> Self {
+    pub fn new(
+        extents: Vec2,
+        aabb_kind: AabbKind,
+        collision_behavior: CollisionBehavior,
+        color: Color,
+    ) -> Self {
         let shape = shapes::Rectangle {
             extents,
-            origin: bevy_prototype_lyon::prelude::RectangleOrigin::Center
+            origin: bevy_prototype_lyon::prelude::RectangleOrigin::Center,
         };
 
         let builder = GeometryBuilder::new().add(&shape);
 
         Self {
-            aabb: Aabb { uuid: Uuid::new_v4(), extents },
+            aabb: Aabb {
+                uuid: Uuid::new_v4(),
+                extents,
+            },
             aabb_kind,
             collision_behavior,
             debug_shape: builder.build(
@@ -149,7 +178,7 @@ impl AabbBundle {
 
 #[derive(Default)]
 struct CollisionWorld {
-    aabbs: HashMap<Uuid, (Entity, AabbComputed)>
+    aabbs: HashMap<Uuid, (Entity, AabbComputed)>,
 }
 
 static PHYSICS_STAGE: &str = "physics";
@@ -159,11 +188,18 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(AsepritePlugin)
         .add_plugin(ShapePlugin)
-        .add_stage_after(CoreStage::PostUpdate, PHYSICS_STAGE, SystemStage::single_threaded())
+        .add_stage_after(
+            CoreStage::PostUpdate,
+            PHYSICS_STAGE,
+            SystemStage::single_threaded(),
+        )
         .init_resource::<CollisionWorld>()
         .add_startup_system(setup)
         .add_system_to_stage(PHYSICS_STAGE, updated_computed_aabbs.label("aabb"))
-        .add_system_to_stage(PHYSICS_STAGE, handle_collision.label("collision").after("aabb"))
+        .add_system_to_stage(
+            PHYSICS_STAGE,
+            handle_collision.label("collision").after("aabb"),
+        )
         .add_system_to_stage(PHYSICS_STAGE, transform_propagate_system.after("collision"))
         .add_system(bevy::input::system::exit_on_esc_system)
         .add_system(player_input)
@@ -195,8 +231,18 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..Default::default()
         })
         .with_children(|parent| {
-            parent.spawn_bundle(AabbBundle::new(Vec2::new(32., 32.), AabbKind::Collider, CollisionBehavior::Player, Color::GREEN));
-            parent.spawn_bundle(AabbBundle::new(Vec2::new(46., 46.), AabbKind::Sensor, CollisionBehavior::None, Color::PURPLE));
+            parent.spawn_bundle(AabbBundle::new(
+                Vec2::new(32., 32.),
+                AabbKind::Collider,
+                CollisionBehavior::Player,
+                Color::GREEN,
+            ));
+            parent.spawn_bundle(AabbBundle::new(
+                Vec2::new(46., 46.),
+                AabbKind::Sensor,
+                CollisionBehavior::None,
+                Color::PURPLE,
+            ));
         })
         .insert(PlayerTag);
     commands
@@ -211,8 +257,18 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..Default::default()
         })
         .with_children(|parent| {
-            parent.spawn_bundle(AabbBundle::new(Vec2::new(32., 32.), AabbKind::Collider, CollisionBehavior::Static, Color::GREEN));
-            parent.spawn_bundle(AabbBundle::new(Vec2::new(46., 46.), AabbKind::Sensor, CollisionBehavior::None, Color::PURPLE));
+            parent.spawn_bundle(AabbBundle::new(
+                Vec2::new(32., 32.),
+                AabbKind::Collider,
+                CollisionBehavior::Static,
+                Color::GREEN,
+            ));
+            parent.spawn_bundle(AabbBundle::new(
+                Vec2::new(46., 46.),
+                AabbKind::Sensor,
+                CollisionBehavior::None,
+                Color::PURPLE,
+            ));
         })
         .insert(CowTag);
     commands.spawn_bundle(Text2dBundle {
@@ -298,8 +354,7 @@ fn player_input(
 
 fn toggle_debug_render(
     keys: Res<Input<KeyCode>>,
-    mut query: Query<&mut Visible, With<DebugRenderTag>,
-    >,
+    mut query: Query<&mut Visibility, With<DebugRenderTag>>,
 ) {
     if keys.just_pressed(KeyCode::Grave) {
         for mut visible in query.iter_mut() {
@@ -308,9 +363,19 @@ fn toggle_debug_render(
     }
 }
 
-fn updated_computed_aabbs(mut collision_world: ResMut<CollisionWorld>,
-    aabb_query: Query<(&Parent, &Aabb, &AabbKind, &CollisionBehavior, &GlobalTransform), Changed<GlobalTransform>>) {
-
+fn updated_computed_aabbs(
+    mut collision_world: ResMut<CollisionWorld>,
+    aabb_query: Query<
+        (
+            &Parent,
+            &Aabb,
+            &AabbKind,
+            &CollisionBehavior,
+            &GlobalTransform,
+        ),
+        Changed<GlobalTransform>,
+    >,
+) {
     for (parent, aabb, aabb_kind, collision_behavior, g_trans) in aabb_query.iter() {
         let aabb_computed = AabbComputed {
             min: g_trans.translation.xy() - aabb.extents(),
@@ -318,62 +383,77 @@ fn updated_computed_aabbs(mut collision_world: ResMut<CollisionWorld>,
             aabb_kind: *aabb_kind,
             collision_behavior: *collision_behavior,
         };
-        collision_world.aabbs.insert(aabb.uuid, (**parent, aabb_computed));
+        collision_world
+            .aabbs
+            .insert(aabb.uuid, (**parent, aabb_computed));
     }
 }
 
 fn handle_collision(
     collision_world: Res<CollisionWorld>,
     mut transform_q: Query<&mut Transform>,
-    mut gtransform_q: Query<&mut GlobalTransform>) {
-        for (ent1, aabb1) in collision_world.aabbs.values() {
-            for (ent2, aabb2) in collision_world.aabbs.values() {
-                if let Some(collision_kind) = aabb1.intersects(aabb2, *ent1, *ent2) {
-                    match collision_kind {
-                        CollisionKind::ColliderCollider => {
-                            match (aabb1.collision_behavior, aabb2.collision_behavior) {
-                                (CollisionBehavior::Player, CollisionBehavior::Static) =>  {
-                                    let displacement = aabb1.shallow_axis_displace(aabb2);
-                                    dbg!(&displacement);
-                                    transform_q.get_component_mut::<Transform>(*ent1).unwrap().translation += displacement.extend(0.0);
-                                    gtransform_q.get_component_mut::<GlobalTransform>(*ent1).unwrap().translation += displacement.extend(0.0);
-                                }
-                                (CollisionBehavior::Static, CollisionBehavior::Player) => {
-                                    let displacement = aabb2.shallow_axis_displace(aabb1);
-                                    dbg!(&displacement, ent1, ent2);
-                                    transform_q.get_component_mut::<Transform>(*ent2).unwrap().translation += displacement.extend(0.0);
-                                    gtransform_q.get_component_mut::<GlobalTransform>(*ent2).unwrap().translation += displacement.extend(0.0);
-                                }
-                                (CollisionBehavior::None, CollisionBehavior::None) => { /* do nothing */},
-                                (CollisionBehavior::None, CollisionBehavior::Static) => todo!(),
-                                (CollisionBehavior::None, CollisionBehavior::Npc) => todo!(),
-                                (CollisionBehavior::None, CollisionBehavior::Player) => todo!(),
-                                (CollisionBehavior::None, CollisionBehavior::Movable) => todo!(),
-                                (CollisionBehavior::Static, CollisionBehavior::None) => todo!(),
-                                (CollisionBehavior::Static, CollisionBehavior::Static) => todo!(),
-                                (CollisionBehavior::Static, CollisionBehavior::Npc) => todo!(),
-                                (CollisionBehavior::Static, CollisionBehavior::Movable) => todo!(),
-                                (CollisionBehavior::Npc, CollisionBehavior::None) => todo!(),
-                                (CollisionBehavior::Npc, CollisionBehavior::Static) => todo!(),
-                                (CollisionBehavior::Npc, CollisionBehavior::Npc) => todo!(),
-                                (CollisionBehavior::Npc, CollisionBehavior::Player) => todo!(),
-                                (CollisionBehavior::Npc, CollisionBehavior::Movable) => todo!(),
-                                (CollisionBehavior::Player, CollisionBehavior::None) => todo!(),
-                                (CollisionBehavior::Player, CollisionBehavior::Npc) => todo!(),
-                                (CollisionBehavior::Player, CollisionBehavior::Player) => todo!(),
-                                (CollisionBehavior::Player, CollisionBehavior::Movable) => todo!(),
-                                (CollisionBehavior::Movable, CollisionBehavior::None) => todo!(),
-                                (CollisionBehavior::Movable, CollisionBehavior::Static) => todo!(),
-                                (CollisionBehavior::Movable, CollisionBehavior::Npc) => todo!(),
-                                (CollisionBehavior::Movable, CollisionBehavior::Player) => todo!(),
-                                (CollisionBehavior::Movable, CollisionBehavior::Movable) => todo!(),
+    mut gtransform_q: Query<&mut GlobalTransform>,
+) {
+    for (ent1, aabb1) in collision_world.aabbs.values() {
+        for (ent2, aabb2) in collision_world.aabbs.values() {
+            if let Some(collision_kind) = aabb1.intersects(aabb2, *ent1, *ent2) {
+                match collision_kind {
+                    CollisionKind::ColliderCollider => {
+                        match (aabb1.collision_behavior, aabb2.collision_behavior) {
+                            (CollisionBehavior::Player, CollisionBehavior::Static) => {
+                                let displacement = aabb1.shallow_axis_displace(aabb2);
+                                dbg!(&displacement);
+                                transform_q
+                                    .get_component_mut::<Transform>(*ent1)
+                                    .unwrap()
+                                    .translation += displacement.extend(0.0);
+                                gtransform_q
+                                    .get_component_mut::<GlobalTransform>(*ent1)
+                                    .unwrap()
+                                    .translation += displacement.extend(0.0);
                             }
+                            (CollisionBehavior::Static, CollisionBehavior::Player) => {
+                                let displacement = aabb2.shallow_axis_displace(aabb1);
+                                dbg!(&displacement, ent1, ent2);
+                                transform_q
+                                    .get_component_mut::<Transform>(*ent2)
+                                    .unwrap()
+                                    .translation += displacement.extend(0.0);
+                                gtransform_q
+                                    .get_component_mut::<GlobalTransform>(*ent2)
+                                    .unwrap()
+                                    .translation += displacement.extend(0.0);
+                            }
+                            (CollisionBehavior::None, CollisionBehavior::None) => { /* do nothing */
+                            }
+                            (CollisionBehavior::None, CollisionBehavior::Static) => todo!(),
+                            (CollisionBehavior::None, CollisionBehavior::Npc) => todo!(),
+                            (CollisionBehavior::None, CollisionBehavior::Player) => todo!(),
+                            (CollisionBehavior::None, CollisionBehavior::Movable) => todo!(),
+                            (CollisionBehavior::Static, CollisionBehavior::None) => todo!(),
+                            (CollisionBehavior::Static, CollisionBehavior::Static) => todo!(),
+                            (CollisionBehavior::Static, CollisionBehavior::Npc) => todo!(),
+                            (CollisionBehavior::Static, CollisionBehavior::Movable) => todo!(),
+                            (CollisionBehavior::Npc, CollisionBehavior::None) => todo!(),
+                            (CollisionBehavior::Npc, CollisionBehavior::Static) => todo!(),
+                            (CollisionBehavior::Npc, CollisionBehavior::Npc) => todo!(),
+                            (CollisionBehavior::Npc, CollisionBehavior::Player) => todo!(),
+                            (CollisionBehavior::Npc, CollisionBehavior::Movable) => todo!(),
+                            (CollisionBehavior::Player, CollisionBehavior::None) => todo!(),
+                            (CollisionBehavior::Player, CollisionBehavior::Npc) => todo!(),
+                            (CollisionBehavior::Player, CollisionBehavior::Player) => todo!(),
+                            (CollisionBehavior::Player, CollisionBehavior::Movable) => todo!(),
+                            (CollisionBehavior::Movable, CollisionBehavior::None) => todo!(),
+                            (CollisionBehavior::Movable, CollisionBehavior::Static) => todo!(),
+                            (CollisionBehavior::Movable, CollisionBehavior::Npc) => todo!(),
+                            (CollisionBehavior::Movable, CollisionBehavior::Player) => todo!(),
+                            (CollisionBehavior::Movable, CollisionBehavior::Movable) => todo!(),
                         }
-                        CollisionKind::SensorCollider => {},
-                        CollisionKind::SensorSensor => {},
                     }
+                    CollisionKind::SensorCollider => {}
+                    CollisionKind::SensorSensor => {}
                 }
             }
         }
-
+    }
 }
